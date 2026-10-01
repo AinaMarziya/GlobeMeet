@@ -6,7 +6,22 @@ let connections= {}
 let messages = {}
 let timeOnline = {}
 let userLanguages = {}
+const translateMessage = async (message, fromLanguage, toLanguage) => {
 
+    // For now, we are NOT connecting a translation API.
+    // This is only our temporary function.
+
+    if (fromLanguage === toLanguage) {
+        return message;
+    }
+
+    console.log(
+        `Translation needed: ${fromLanguage} → ${toLanguage}`
+    );
+
+    // Temporary: return original message
+    return message;
+};
 export const connectToSocket = (server) => {
     const io= new Server(server, {
         cors: {
@@ -75,13 +90,27 @@ export const connectToSocket = (server) => {
                     messages[matchingRoom] = []
                 }
 
-                messages[matchingRoom].push({'sender': sender, "data" : data , "socket-id-sender": socket.id})
+                messages[matchingRoom].push({'sender': sender, "data" : data , "socket-id-sender": socket.id, senderLanguage: userLanguages[socket.id] || "en"})
                 console.log("message", matchingRoom, ":" , sender, data)
 
-                connections[matchingRoom].forEach((elem) => {
-                    io.to(elem).emit("chat-message", data, sender, socket.id)
-                })
-            }
+                connections[matchingRoom].forEach(async (elem) => {
+
+                const receiverLanguage = userLanguages[elem] || "en";
+
+                const translatedMessage = await translateMessage(
+                    data,
+                    userLanguages[socket.id] || "en",
+                    receiverLanguage
+                );
+
+                io.to(elem).emit(
+                    "chat-message",
+                    translatedMessage,
+                    sender,
+                    socket.id
+                );
+            });
+                        }
         })
 
         socket.on("disconnect", () => {
@@ -98,17 +127,17 @@ export const connectToSocket = (server) => {
                             io.to(connections[key][a]).emit('user-left', socket.id)
                         }
 
-                        var index = connections[key].indexOf(socket.id)
+                         var index = connections[key].indexOf(socket.id)
 
                         connections[key].splice(index, 1)
 
                         if (connections[key].length === 0) {
                             delete connections[key]
                         }
-                        delete userLanguages[socket.id];
                     }
                 }
             }
+            delete userLanguages[socket.id];
         })
     })
 }
