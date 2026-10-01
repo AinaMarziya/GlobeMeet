@@ -5,6 +5,7 @@ import {Server } from "socket.io"
 let connections= {}
 let messages = {}
 let timeOnline = {}
+let userLanguages = {}
 
 export const connectToSocket = (server) => {
     const io= new Server(server, {
@@ -18,6 +19,15 @@ export const connectToSocket = (server) => {
     });
     
     io.on("connection" , (socket)=> {
+        socket.on("set-language", (language) => {
+            userLanguages[socket.id] = language;
+
+            console.log(
+                "User language:",
+                socket.id,
+                language
+            );
+        });
         console.log("Somethong Connected");
 
         socket.on("join-call", (path) => {
@@ -95,6 +105,7 @@ export const connectToSocket = (server) => {
                         if (connections[key].length === 0) {
                             delete connections[key]
                         }
+                        delete userLanguages[socket.id];
                     }
                 }
             }
