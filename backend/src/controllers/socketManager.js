@@ -127,45 +127,121 @@ export const connectToSocket = (server) => {
             io.to(toId).emit("signal", socket.id, message);
         })
 
-        socket.on("chat-message", (data, sender) => {
+        socket.on("chat-message", async (data, sender) => {
 
-            const [matchingRoom, found] = Object.entries(connections)
-            .reduce(([room, isFound], [roomKey, roomValue]) => {
+    // Find which meeting room this user belongs to
+    const [matchingRoom, found] = Object.entries(connections)
+        .reduce(([room, isFound], [roomKey, roomValue]) => {
 
-                if(!isFound && roomValue.includes(socket.id)){
-                    return [roomKey, true];
-                }
+            if (!isFound && roomValue.includes(socket.id)) {
+                return [roomKey, true];
+            }
 
-                return [room, isFound];
-            }, ['', false]);
+            return [room, isFound];
 
-            if(found === true){
-                if(messages[matchingRoom] === undefined){
-                    messages[matchingRoom] = []
-                }
+        }, ['', false]);
 
-                messages[matchingRoom].push({'sender': sender, "data" : data , "socket-id-sender": socket.id, senderLanguage: userLanguages[socket.id] || "en"})
-                console.log("message", matchingRoom, ":" , sender, data)
 
-                connections[matchingRoom].forEach(async (elem) => {
+    // If user is not in any room, stop
+    if (!found) {
+        return;
+    }
 
-                const receiverLanguage = userLanguages[elem] || "en";
 
-                const translatedMessage = await translateMessage(
+    // Create messages array for this room if it doesn't exist
+    if (messages[matchingRoom] === undefined) {
+        messages[matchingRoom] = [];
+    }
+
+
+    // Language of the person who sent the message
+    const senderLanguage =
+        userLanguages[socket.id] || "en";
+
+
+    // Save the ORIGINAL message
+    messages[matchingRoom].push({
+        sender: sender,
+        data: data,
+        "socket-id-sender": socket.id,
+        senderLanguage: senderLanguage
+    });
+
+
+    console.log(
+        "Message:",
+        matchingRoom,
+        ":",
+        sender,
+        data,
+        "Language:",
+        senderLanguage
+    );
+
+
+    // ------------------------------------------------
+    // Find all different languages in this meeting
+    // ------------------------------------------------
+
+    const languages = new Set();
+
+    connections[matchingRoom].forEach((userId) => {
+
+        const language =
+            userLanguages[userId] || "en";
+
+        languages.add(language);
+    });
+
+
+    // ------------------------------------------------
+    // Translate the message ONCE for each language
+    // ------------------------------------------------
+
+    const translations = {};
+
+    for (const language of languages) {
+
+        // If the receiver uses the same language
+        // as the sender, translation is unnecessary.
+        if (language === senderLanguage) {
+
+            translations[language] = data;
+
+        } else {
+
+            translations[language] =
+                await translateMessage(
                     data,
-                    userLanguages[socket.id] || "en",
-                    receiverLanguage
+                    senderLanguage,
+                    language
                 );
+        }
+    }
 
-                io.to(elem).emit(
-                    "chat-message",
-                    translatedMessage,
-                    sender,
-                    socket.id
-                );
-            });
-                        }
-        })
+
+    // ------------------------------------------------
+    // Send the correct translation to each user
+    // ------------------------------------------------
+
+    connections[matchingRoom].forEach((userId) => {
+
+        const receiverLanguage =
+            userLanguages[userId] || "en";
+
+        const translatedMessage =
+            translations[receiverLanguage];
+
+
+        io.to(userId).emit(
+            "chat-message",
+            translatedMessage,
+            sender,
+            socket.id
+        );
+    });
+
+});
 
         socket.on("disconnect", () => {
             var diffTime = Math.abs(timeOnline[socket.id] - new Date())
