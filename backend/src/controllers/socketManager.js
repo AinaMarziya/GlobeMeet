@@ -1,26 +1,48 @@
 import connection  from "mongoose"
 import {Server } from "socket.io"
+import * as deepl from "deepl-node"
 
 
 let connections= {}
 let messages = {}
 let timeOnline = {}
 let userLanguages = {}
-const translateMessage = async (message, fromLanguage, toLanguage) => {
+const deeplClient = new deepl.DeepLClient(
+    process.env.DEEPL_AUTH_KEY
+);
 
-    // For now, we are NOT connecting a translation API.
-    // This is only our temporary function.
+const translateMessage = async (
+    message,
+    fromLanguage,
+    toLanguage
+) => {
 
+    // No translation needed
     if (fromLanguage === toLanguage) {
         return message;
     }
 
-    console.log(
-        `Translation needed: ${fromLanguage} → ${toLanguage}`
-    );
+    try {
 
-    // Temporary: return original message
-    return message;
+        const result = await deeplClient.translateText(
+            message,
+            fromLanguage,
+            toLanguage
+        );
+
+        return result.text;
+
+    } catch (error) {
+
+        console.error(
+            "Translation error:",
+            error.message
+        );
+
+        // If translation fails,
+        // return the original message
+        return message;
+    }
 };
 export const connectToSocket = (server) => {
     const io= new Server(server, {
@@ -45,30 +67,62 @@ export const connectToSocket = (server) => {
         });
         console.log("Somethong Connected");
 
-        socket.on("join-call", (path) => {
-            if(connections[path] === undefined){
-                connections[path] = [];
-            }
-                connections[path].push(socket.id)
-                timeOnline[socket.id] = new Date();
+        socket.on("join-call", async (path) => {
 
-                // connetions[path].forEach(elem => {
-                //     io.to(elem)
-                // })
+    if (connections[path] === undefined) {
+        connections[path] = [];
+    }
 
-                for(let a=0; a<connections[path].length; a++){
-                    io.to(connections[path][a]).emit("user-joined",socket.id, connections[path] )
-                }
+    connections[path].push(socket.id);
+    timeOnline[socket.id] = new Date();
 
-                if(messages[path] !== undefined){
-                    for(let a=0; a<messages[path].length; a++){
-                        io.to(socket.id).emit("chat-message",
-                            messages[path][a]['data'],
-                            messages[path][a]['sender'],
-                            messages[path][a]['socket-id-sender'])
-                    }
-                }
-        })
+
+    // Tell everyone that a new user joined
+    for (let a = 0; a < connections[path].length; a++) {
+
+        io.to(connections[path][a]).emit(
+            "user-joined",
+            socket.id,
+            connections[path]
+        );
+    }
+
+
+    // Send previous chat messages to the new user
+    if (messages[path] !== undefined) {
+
+        for (let a = 0; a < messages[path].length; a++) {
+
+            const oldMessage = messages[path][a];
+
+            // Language in which the original sender sent the message
+            const senderLanguage =
+                oldMessage.senderLanguage || "en";
+
+            // Language selected by the new user
+            const receiverLanguage =
+                userLanguages[socket.id] || "en";
+
+
+            // Translate old message for the new user
+            const translatedMessage =
+                await translateMessage(
+                    oldMessage.data,
+                    senderLanguage,
+                    receiverLanguage
+                );
+
+
+            // Send translated old message
+            io.to(socket.id).emit(
+                "chat-message",
+                translatedMessage,
+                oldMessage.sender,
+                oldMessage["socket-id-sender"]
+            );
+        }
+    }
+});
         socket.on("signal", (toId, message) => {
             io.to(toId).emit("signal", socket.id, message);
         })
