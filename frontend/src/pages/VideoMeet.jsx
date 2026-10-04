@@ -306,14 +306,20 @@ export default function videoMeetComponent() {
     
     //TODO addMessage
      const addMessage = (data, sender, socketIdSender) => {
-        setMessages((prevMessages) => [
-            ...prevMessages,
-            { sender: sender, data: data }
-        ]);
-        if (socketIdSender !== socketIdRef.current) {
-            setNewMessages((prevNewMessages) => prevNewMessages + 1);
+
+    setMessages((prevMessages) => [
+        ...prevMessages,
+        {
+            sender: sender,
+            original: data.original,
+            translated: data.translated
         }
-    };
+    ]);
+
+    if (socketIdSender !== socketIdRef.current) {
+        setNewMessages((prevNewMessages) => prevNewMessages + 1);
+    }
+};
 
 
     let connectToSocketServer = () => {
@@ -608,16 +614,29 @@ export default function videoMeetComponent() {
                         <h1>Chat</h1>
                         <div className={styles.chattingDisplay}>
 
-                                {messages.length !== 0 ? messages.map((item, index) => {
+                            {messages.length !== 0 ? messages.map((item, index) => {
 
-                                    console.log(messages)
-                                    return (
-                                        <div style={{ marginBottom: "20px" }} key={index}>
-                                            <p style={{ fontWeight: "bold" }}>{item.sender}</p>
-                                            <p>{item.data}</p>
-                                        </div>
-                                    )
-                                }) : <p>No Messages Yet</p>}
+                                return (
+                                    <div style={{ marginBottom: "20px" }} key={index}>
+
+                                        <p style={{ fontWeight: "bold" }}>
+                                            {item.sender}
+                                        </p>
+
+                                        <p>
+                                            {item.original}
+                                        </p>
+
+                                        {item.translated !== item.original && (
+                                            <p style={{ color: "gray" }}>
+                                                {item.translated}
+                                            </p>
+                                        )}
+
+                                    </div>
+                                );
+
+                            }) : <p>No Messages Yet</p>}
 
 
                             </div>

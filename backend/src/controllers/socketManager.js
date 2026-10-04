@@ -116,7 +116,10 @@ export const connectToSocket = (server) => {
             // Send translated old message
             io.to(socket.id).emit(
                 "chat-message",
-                translatedMessage,
+                {
+                    original: oldMessage.data,
+                    translated: translatedMessage
+                },
                 oldMessage.sender,
                 oldMessage["socket-id-sender"]
             );
@@ -232,13 +235,15 @@ export const connectToSocket = (server) => {
         const translatedMessage =
             translations[receiverLanguage];
 
-
-        io.to(userId).emit(
-            "chat-message",
-            translatedMessage,
-            sender,
-            socket.id
-        );
+                io.to(userId).emit(
+                    "chat-message",
+                    {
+                        original: data,
+                        translated: translatedMessage
+                    },
+                    sender,
+                    socket.id
+                );
     });
 
 });
