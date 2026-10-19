@@ -305,10 +305,10 @@ export default function videoMeetComponent() {
     }
     
     //TODO addMessage
-     const addMessage = (data, sender, socketIdSender) => {
+let addMessage = (data, sender, socketIdSender) => {
 
-    setMessages((prevMessages) => [
-        ...prevMessages,
+    setMessages((messages) => [
+        ...messages,
         {
             sender: sender,
             original: data.original,
@@ -344,7 +344,7 @@ export default function videoMeetComponent() {
             socketRef.current.on('user-joined', (id, clients) => {
                 clients.forEach((socketListId) => {
 
-                    if(socketListId=== socketRef.current) return;
+                    if(socketListId=== socketRef.current.id) return;
 
                     connections[socketListId] = new RTCPeerConnection(peerConfigConnections)
                     // Wait for their ice candidate       
@@ -502,20 +502,25 @@ export default function videoMeetComponent() {
                 <div className={styles.conferenceView}>
 
                     {videos.map((video) => (
-                        <div key={video.socketId}>
-
-                            <video
-                                data-socket={video.socketId}
-                                ref={(ref) => {
-                                    if (ref && video.stream) {
-                                        ref.srcObject = video.stream;
-                                    }
-                                }}
-                                autoPlay
-                                playsInline
-                            ></video>
-
-                        </div>
+                        <div
+    className={styles.videoCard}
+    key={video.socketId}
+>
+    <video
+        data-socket={video.socketId}
+        ref={(ref) => {
+    if (
+        ref &&
+        video.stream &&
+        ref.srcObject !== video.stream
+    ) {
+        ref.srcObject = video.stream;
+    }
+}}
+        autoPlay
+        playsInline
+    />
+</div>
                     ))}
 
                 </div>
@@ -614,29 +619,34 @@ export default function videoMeetComponent() {
                         <h1>Chat</h1>
                         <div className={styles.chattingDisplay}>
 
-                            {messages.length !== 0 ? messages.map((item, index) => {
+{messages.length !== 0 ? (
+    messages.map((item, index) => (
+        <div
+            className={styles.messageCard}
+            key={index}
+        >
+            <p className={styles.messageSender}>
+                {item.sender}
+            </p>
 
-                                return (
-                                    <div style={{ marginBottom: "20px" }} key={index}>
+            <p className={styles.messageText}>
+                <strong>Original:</strong>{" "}
+                {item.original ?? item.data ?? ""}
+            </p>
 
-                                        <p style={{ fontWeight: "bold" }}>
-                                            {item.sender}
-                                        </p>
-
-                                        <p>
-                                            {item.original}
-                                        </p>
-
-                                        {item.translated !== item.original && (
-                                            <p style={{ color: "gray" }}>
-                                                {item.translated}
-                                            </p>
-                                        )}
-
-                                    </div>
-                                );
-
-                            }) : <p>No Messages Yet</p>}
+            {item.translated &&
+                item.translated !==
+                    (item.original ?? item.data) && (
+                    <p className={styles.messageText}>
+                        <strong>Translation:</strong>{" "}
+                        {item.translated}
+                    </p>
+                )}
+        </div>
+    ))
+) : (
+    <p>No Messages Yet</p>
+)}
 
 
                             </div>
@@ -644,27 +654,23 @@ export default function videoMeetComponent() {
 
                         {/* Messages */}
                         
-                        <div className={styles.chatRoom}>
+                            <div className={styles.chatInputArea}>
 
-                            <TextField
-                                value={message}
-                                onChange={(e) =>
-                                    setMessage(e.target.value)
-                                }
-                                id="outlined-basic"
-                                label="Enter Your chat"
-                                variant="outlined"
-                                fullWidth
-                            />
+                                <TextField
+                                    value={message}
+                                    onChange={handleMessage}
+                                    placeholder="Enter your chat"
+                                    fullWidth
+                                />
 
-                            <Button
-                                variant="contained"
-                                onClick={sendMessage}
-                            >
-                                Send
-                            </Button>
+                                <Button
+                                    variant="contained"
+                                    onClick={sendMessage}
+                                >
+                                    SEND
+                                </Button>
 
-                        </div>
+                            </div>
 
                     </div>
                 )}

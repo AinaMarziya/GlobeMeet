@@ -10,24 +10,56 @@ let userLanguages = {}
 const deeplClient = new deepl.DeepLClient(
     process.env.DEEPL_AUTH_KEY
 );
+const sourceLanguageMap = {
+    en: "EN",
+    hi: "HI",
+    ur: "UR",
+    fr: "FR",
+    es: "ES"
+};
 
+const targetLanguageMap = {
+    en: "EN-US",
+    hi: "HI",
+    ur: "UR",
+    fr: "FR",
+    es: "ES"
+};
 const translateMessage = async (
     message,
     fromLanguage,
     toLanguage
 ) => {
 
-    // No translation needed
+    if (!message || message.trim() === "") {
+        return "";
+    }
+
     if (fromLanguage === toLanguage) {
         return message;
     }
 
     try {
 
+        const sourceLanguage =
+            sourceLanguageMap[fromLanguage];
+
+        const targetLanguage =
+            targetLanguageMap[toLanguage];
+
+        console.log(
+            `Translating ${sourceLanguage} → ${targetLanguage}`
+        );
+
         const result = await deeplClient.translateText(
             message,
-            fromLanguage,
-            toLanguage
+            sourceLanguage,
+            targetLanguage
+        );
+
+        console.log(
+            "Translation result:",
+            result.text
         );
 
         return result.text;
@@ -39,11 +71,10 @@ const translateMessage = async (
             error.message
         );
 
-        // If translation fails,
-        // return the original message
         return message;
     }
 };
+
 export const connectToSocket = (server) => {
     const io= new Server(server, {
         cors: {
@@ -63,11 +94,14 @@ export const connectToSocket = (server) => {
                 "User language:",
                 socket.id,
                 language
-            );
+            );  
         });
         console.log("Somethong Connected");
 
         socket.on("join-call", async (path) => {
+//             console.log("JOIN CALL");
+// console.log("Socket ID:", socket.id);
+// console.log("ROOM PATH:", path);
 
     if (connections[path] === undefined) {
         connections[path] = [];
@@ -95,9 +129,6 @@ export const connectToSocket = (server) => {
 
             const oldMessage = messages[path][a];
 
-            // Language in which the original sender sent the message
-            const senderLanguage =
-                oldMessage.senderLanguage || "en";
 
             // Language selected by the new user
             const receiverLanguage =
@@ -108,7 +139,7 @@ export const connectToSocket = (server) => {
             const translatedMessage =
                 await translateMessage(
                     oldMessage.data,
-                    senderLanguage,
+                    oldMessage.senderLanguage,
                     receiverLanguage
                 );
 
@@ -229,11 +260,28 @@ export const connectToSocket = (server) => {
 
     connections[matchingRoom].forEach((userId) => {
 
-        const receiverLanguage =
-            userLanguages[userId] || "en";
+    const receiverLanguage =
+                    userLanguages[userId] || "en";
 
-        const translatedMessage =
-            translations[receiverLanguage];
+                // If this is the sender
+                if (userId === socket.id) {
+
+                    io.to(userId).emit(
+                        "chat-message",
+                        {
+                            original: data,
+                            translated: data
+                        },
+                        sender,
+                        socket.id
+                    );
+
+                    return;
+                }
+
+                // For other users, send translated message
+                const translatedMessage =
+                    translations[receiverLanguage];
 
                 io.to(userId).emit(
                     "chat-message",
@@ -244,7 +292,7 @@ export const connectToSocket = (server) => {
                     sender,
                     socket.id
                 );
-    });
+            });
 
 });
 
